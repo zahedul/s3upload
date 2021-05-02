@@ -6,6 +6,13 @@ from boto3 import session
 import requests
 from botocore.exceptions import ClientError
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s:%(lineno)s] %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+
 BUCKET_NAME = "zahed-test"
 AWS_PROFILE = "dazntest"
 
@@ -15,6 +22,7 @@ def create_temp_file(size, file_name, file_content):
     with open(random_file_name, 'w') as f:
         f.write(str(file_content) * size)
     return random_file_name
+
 
 def create_presigned_url(bucket_name, object_name, expiration=3600):
     """Generate a presigned URL to share an S3 object
@@ -75,6 +83,7 @@ def create_presigned_post(bucket_name, object_name,
     # The response contains the presigned URL and required fields
     return response
 
+
 def s3_upload_with_post_url():
     # Generate a presigned S3 POST URL
     object_name = str(uuid.uuid4().hex[:6]) + '_presigned_post.txt'
@@ -83,14 +92,14 @@ def s3_upload_with_post_url():
     if response is None:
         exit(1)
         
-    print(response)
+    logger.info(response)
 
     # Demonstrate how another Python program can use the presigned URL to upload a file
     with open(filename, 'rb') as f:
         files = {'file': (object_name, f)}
         http_response = requests.post(response['url'], data=response['fields'], files=files)
     # If successful, returns HTTP status code 204
-    print(f'File upload HTTP status code: {http_response.status_code}')
+    logger.info(f'File upload HTTP status code: {http_response.status_code}')
     
 
 def get_list():
@@ -101,6 +110,7 @@ def get_list():
     for file in my_bucket.objects.all():
         print(file.key)
 
+
 def simple_upload():
     session = boto3.session.Session(profile_name=AWS_PROFILE)
     s3 = session.resource('s3')
@@ -110,9 +120,9 @@ def simple_upload():
     s3_object = s3.Object(BUCKET_NAME, file_name)
     try:
         s3_object.upload_file(file_name)
-        print('file uploaded')
+        logger.info('file uploaded')
     except Exception as e:
-        print(e)
+        logger.error(e)
 
 
 def upload_presigned_url():
@@ -126,10 +136,10 @@ def upload_presigned_url():
         if url is not None:
             response = requests.put(url, data=open(filename, 'rb'), headers=headers)
             response.raise_for_status()
-            print(response.status_code)
-            print(response.text)
+            logger.info(response.status_code)
+            logger.info(response.text)
     except Exception as e:
-        print(e)
+        logger.error(e)
         
 
 def create_post_curl_request():
@@ -138,9 +148,7 @@ def create_post_curl_request():
     response = create_presigned_post(BUCKET_NAME, object_name)
     if response is None:
         exit(1)
-        
-    print(response)
-    
+
     url = response['url']
     fields = response['fields']
 
@@ -150,13 +158,15 @@ def create_post_curl_request():
 
     post_form_params = " ".join(field_params)
     
-    print(url)
-    print(post_form_params)
+    logger.info(url)
+    logger.info(post_form_params)
     
     with open("curl_upload.sh", "w") as f:
-        f.write("curl -i -v -include ")
-        f.write(f"-T {filename} ")
-        f.write(post_form_params + " " + url)
+        f.write("curl -i -v ")
+        f.write(post_form_params)
+        f.write(f" -F 'file=@{filename}' ")
+        f.write(url)
+
 
 def create_curl_request():
     object_name = str(uuid.uuid4().hex[:6]) + '_curl_put.txt'
@@ -165,12 +175,13 @@ def create_curl_request():
     if url is None:
         exit(1)
         
-    print(url)
+    logger.info(url)
 
     with open("curl_upload.sh", "w") as f:
         f.write("curl -i -v -include ")
-        f.write(f"-T /home/zahed/projects/hacktools/s3upload/{filename} ")
+        f.write(f"-T ./{filename} ")
         f.write(f"'{url}'")
-        
+
+
 if __name__ == '__main__':
-    create_curl_request()
+    create_post_curl_request()
